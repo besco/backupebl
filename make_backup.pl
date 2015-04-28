@@ -24,6 +24,7 @@ $conf{mail_subject}='Backup at '.&fTimeStamp(logfile);
 # Age old backups in days
 $conf{old_files_age}=30;
 
+#Get date and time for logfile. like that "15/04/2015 21:28:24" and for backup file, like that 15/04/2015_21:28:24
 sub fTimeStamp {
  $param = $_[0];
  ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)=localtime(time);
@@ -42,6 +43,7 @@ sub fTimeStamp {
  };
 }
 
+#Sending email
 sub sendMail {
     $message = $_[0];
     $buffer .= &fTimeStamp(logfile)." * Sending report backup script\n";
@@ -58,7 +60,9 @@ sub sendMail {
     
 };
 
+#make backup
 sub makeBackup {
+    #get dirs from command line
     my @arc_dir=@_;
     $countdir=$#arc_dir+1;
     $stringlog=&fTimeStamp(logfile)." - Checking ".$countdir." directories:\n";
@@ -95,6 +99,7 @@ sub makeBackup {
     };
 };
 
+#Purge old backup files. Age set from command line in days.
 sub purgeOld {
     $log->print(&fTimeStamp(logfile)." - Start purging old archives\n");
     $buffer .= &fTimeStamp(logfile)." * Start purging old archives\n";
@@ -102,11 +107,15 @@ sub purgeOld {
     my @files;
     my @newest_files;
     if (-d $path) {
+	# Open dir with backup (set in header)
 	opendir my $dir, $path or die $!;
+	# read files in array
 	@all_files = readdir $dir;
 	closedir $dir;
 	if ($#all_files gt 0) {
+	    # Get backup files newer than the specified option --old-file-age
 	    push(@newest_files, split(/ /,`find $path -type f -name "*" -atime -$conf{old_files_age} | xargs`));
+	    # Get old backup files for del
 	    push(@files, split(/ /,`find $path -type f -name "*" -atime +$conf{old_files_age} | xargs`));
 	    $stringlog  = &fTimeStamp(logfile)." - Found ".($#files+1)." old file(s).\n";
     	    $log->print($stringlog);
@@ -131,6 +140,7 @@ sub purgeOld {
 	    $log->print($stringlog);
 	    $buffer .= $stringlog;
 	    $stringlog="";
+	    # Get age of new backup files 
 	    for ($i=0;$i<=$#newest_files;$i++) {
 		chomp($newest_files[$i]);
 		my $mtime = (stat "$newest_files[$i]")[9];
@@ -156,6 +166,7 @@ sub purgeOld {
     $buffer .= $stringlog;
 };
 
+# get commandline options
 for ($i=0;$i<=$#ARGV;$i++) {
     if (substr($ARGV[$i],0,2) eq "--") {
 	if ($ARGV[$i] == "--make-purge") { $ARGV[$i] .= "=1"; };
@@ -186,6 +197,7 @@ for ($i=0;$i<=$#ARGV;$i++) {
     };
 };
 
+# print help
 if (!@dir_for_arc && !$purge) {
     print $purge;
     print "\n";
