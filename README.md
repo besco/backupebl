@@ -1,2 +1,2 @@
 # backupebl
-Perl cript for backup
+Perl script for backup
