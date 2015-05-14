@@ -46,19 +46,23 @@ sub fTimeStamp {
 }
 
 sub toLog {
-    $message = $_[0];
-    $buffer .= &fTimeStamp(logfile)."$message\n";
+    my $message = $_[0];
+    my $fpara = $_[1];
+
     $logString = &fTimeStamp(logfile)."$message\n";
-    if ($quiet==0) {
+    if ($quiet eq 0) {
 	print $message."\n";
     };
     $log->print($logstring);
+    if ($fpara =~ /1/) {
+	return $message."\n";;
+    };
 };
 
 #Sending email
 sub sendMail {
     $message = $_[0];
-    &toLog(" * Sending report backup script");
+    $buffer .= &toLog(" * Sending report backup script",1);
     open(MAIL, "|/usr/sbin/sendmail -t");
     print MAIL "To: ".$conf{mail_to}."\n";
     print MAIL "From: ".$conf{mail_from}."\n";
@@ -67,7 +71,7 @@ sub sendMail {
     print MAIL $message;
 
     close(MAIL);
-    &toLog(" - Sending email successfully");
+    $buffer .= &toLog(" - Sending email successfully");
     
 };
 
@@ -76,30 +80,32 @@ sub makeBackup {
     #get dirs from command line
     my @arc_dir=@_;
     $countdir=$#arc_dir+1;
-    &toLog(" - Checking ".$countdir." directories:");
+    $buffer .= &toLog(" - Checking ".$countdir." directories:",1);
     for ($i=0;$i<=$#arc_dir;$i++) {
-	&toLog(" -- Checking $arc_dir[$i] ");
+	$buffer .= &toLog(" -- Checking $arc_dir[$i] ",1);
 	if (!-d $arc_dir[$i]) {
-	    &toLog(" !! Directory $arc_dir[$i] does not exist. Skiping. ");
+	    $buffer .= &toLog(" !! Directory $arc_dir[$i] does not exist. Skiping. ",1);
 	    #splice @array, $i, 1;	    
 	} elsif (-d $arc_dir[$i]) {
-	    &toLog(" - OK");
+	    $buffer .= &toLog(" - OK",1);
 	    $dir_string .=" ".$arc_dir[$i];
 	};
     };
     if ($dir_string) {
 	$countdir=$#arc_dir+1;
-	&toLog(" - Archiving ".$countdir." directories.");
-        $output=`tar -zvcf $conf{backup_dir}/$conf{file_name}.tar.gz $dir_string 2>&1`; 
-        $buffer .= &fTimeStamp(logfile)." - ".$output;
+	$buffer .= &toLog(" - Archiving ".$countdir." directories.",1);
+        $output=`tar -zvcf $conf{backup_dir}/$conf{file_name}.tar.gz $dir_string 2>&1`;
+        $quiet=1;
+        $buffer .= &toLog(" - ".$output,1);
+        $quiet=0;
     } else {
-	&toLog(" - Archiving aborted. Nothing to archive.");
+	$buffer .= &toLog(" - Archiving aborted. Nothing to archive.",1);
     };
 };
 
 #Purge old backup files. Age set from command line in days.
 sub purgeOld {
-    &toLog(" * Start purging old archives");
+    $buffer .= &toLog(" * Start purging old archives",1);
     $path = $_[0];
     my @files;
     my @newest_files;
@@ -111,21 +117,21 @@ sub purgeOld {
 	closedir $dir;
 	if ($#all_files gt 0) {
 	    # Get backup files newer than the specified option --old-file-age
-	    push(@newest_files, split(/ /,`find $path -type f -name "*" -atime -$conf{old_files_age} | xargs`));
+	    push(@newest_files, split(/ /,`find $path -type f -name "$conf{file_prefix}*.tar.gz" -atime -$conf{old_files_age} | xargs`));
 	    # Get old backup files for del
-	    push(@files, split(/ /,`find $path -type f -name "*" -atime +$conf{old_files_age} | xargs`));
-	    &toLog(" - Found ".($#files+1)." old file(s).");
+	    push(@files, split(/ /,`find $path -type f -name "$conf{file_prefix}*.tar.gz" -atime +$conf{old_files_age} | xargs`));
+	    $buffer .= &toLog(" - Found ".($#files+1)." old file(s).",1);
 	    for ($i=0;$i<=$#files;$i++) {
 		chomp($files[$i]);
-	        &toLog(" - Deleting old backup $files[$i]");
+	        $buffer .= &toLog(" - Deleting old backup $files[$i]",1);
 	        unlink($files[$i]);
 	        if (!$!) {
-	    	    &toLog(" - Deleting $files[$i] successful");
+	    	    $buffer .= &toLog(" - Deleting $files[$i] successful",1);
 		} else {
-		    &toLog(" - Error deleting old backup $files[$i] errno: $!");
+		    $buffer .= &toLog(" - Error deleting old backup $files[$i] errno: $!",1);
 		};
 	    };
-	    &toLog(" - Found ".($#newest_files+1)." files newer than the specified option --old-file-age ($conf{old_files_age} days). Files will not be deleted:");
+	    $buffer .= &toLog(" - Found ".($#newest_files+1)." files newer than the specified option --old-file-age ($conf{old_files_age} days). Files will not be deleted:",1);
 	    $stringlog="";
 	    # Get age of new backup files 
 	    for ($i=0;$i<=$#newest_files;$i++) {
@@ -134,15 +140,15 @@ sub purgeOld {
 		my($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($mtime);
 		$year+=1900;
 		$mon+=1;
-		&toLog(" -- $newest_files[$i] (Create date: $mon/$mday/$year)");
+		$buffer .= &toLog(" -- $newest_files[$i] (Create date: $mon/$mday/$year)",1);
 	    };
 	} elsif ($#all_files le 0) {
-	    &toLog(" - Found 0 files. Maybe new directory?");
+	    $buffer .= &toLog(" - Found 0 files. Maybe new directory?",1);
 	};
     } elsif (!-d $path) {
-	&toLog(" - $path does not exist.");
+	$buffer .= &toLog(" - $path does not exist.",1);
     };
-    &toLog(" - Purging finished.");
+    $buffer .= &toLog(" - Purging finished.",1);
 };
 
 # get commandline options
@@ -197,7 +203,7 @@ if (!@dir_for_arc && !$purge) {
 
 } else {
     $log = FileHandle->new($conf{file_log}, "a+") || die "Failed to open log file ".$conf{file_log}."\n";
-    &toLog(" * Starting backup script");
+    $buffer .= &toLog(" * Starting backup script",1);
     if (@dir_for_arc) {
 	&makeBackup(@dir_for_arc);
     };
@@ -205,6 +211,6 @@ if (!@dir_for_arc && !$purge) {
     if ($purge) {
 	&purgeOld($conf{backup_dir});
     };
-    &toLog(" * Finish backup script");
+    $buffer .= &toLog(" * Finish backup script",1);
     &sendMail($buffer);
 };
