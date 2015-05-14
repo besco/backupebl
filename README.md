@@ -2,7 +2,7 @@
 
 perl backup script
 
-Usage: ./make_backup.pl [options] <dir1> <dir2> <dir3> etc<br>
+Usage: ./make_backup.pl [options] \<dir1\> \<dir2\> \<dir3\> etc<br>
   <dir> - backup directory
 
 Options:
